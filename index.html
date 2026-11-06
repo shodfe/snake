@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>p5贪吃蛇｜蜡笔小新表情版</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #f8f8f8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 20px;
+      color: #333;
+      font-family: sans-serif;
+    }
+    .info {
+      font-size: 22px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="info">得分：<span id="score">0</span></div>
+
+<script>
+  const CONFIG = {
+    size: 20,
+    w: 600,
+    h: 600,
+    speed: 200,
+    bgColor: "#e6f4e8"
+  };
+
+  let snake;
+  let food;
+  let score = 0;
+  let gameOver = false;
+  let timer;
+
+  class Snake {
+    constructor() {
+      this.reset();
+      this.emotion = "normal";
+    }
+
+    reset() {
+      this.body = [{ x: 15, y: 15 }];
+      this.dx = 1;
+      this.dy = 0;
+      this.emotion = "normal";
+    }
+
+    setDirection(dx, dy) {
+      if (dx === -this.dx && dy === -this.dy) return;
+      this.dx = dx;
+      this.dy = dy;
+    }
+
+    getNewHead() {
+      const head = this.body[0];
+      return {
+        x: head.x + this.dx,
+        y: head.y + this.dy
+      };
+    }
+
+    move(grow = false) {
+      const newHead = this.getNewHead();
+      this.body.unshift(newHead);
+      if (!grow) {
+        this.body.pop();
+      }
+    }
+
+    hitWall() {
+      const head = this.body[0];
+      return head.x < 0 || head.y < 0 ||
+             head.x >= CONFIG.w / CONFIG.size ||
+             head.y >= CONFIG.h / CONFIG.size;
+    }
+
+    hitSelf() {
+      const head = this.body[0];
+      for (let i = 1; i < this.body.length; i++) {
+        let seg = this.body[i];
+        if (seg.x === head.x && seg.y === head.y) return true;
+      }
+      return false;
+    }
+
+    drawHead(x, y) {
+      push();
+      noStroke();
+
+      // 放大的蜡笔小新头部：30×30
+      fill(255, 224, 196);
+      rect(x - 5, y - 5, 30, 30, 6);
+
+      // 腮红
+      fill(255, 160, 160);
+      circle(x - 2, y + 16, 4);
+      circle(x + 18, y + 16, 4);
+
+      fill(0);
+
+      if (this.emotion === "normal") {
+        rect(x - 2, y + 1, 7, 3);
+        rect(x + 15, y + 1, 7, 3);
+        circle(x + 1, y + 8, 3);
+        circle(x + 18, y + 8, 3);
+        rect(x + 5, y + 17, 10, 2);
+      } else if (this.emotion === "happy") {
+        arc(x + 1, y + 3, 5, 4, PI, TWO_PI);
+        arc(x + 18, y + 3, 5, 4, PI, TWO_PI);
+        circle(x + 1, y + 8, 3);
+        circle(x + 18, y + 8, 3);
+        arc(x + 10, y + 18, 10, 5, 0, PI);
+      } else if (this.emotion === "sad") {
+        arc(x + 1, y + 6, 5, 4, 0, PI);
+        arc(x + 18, y + 6, 5, 4, 0, PI);
+        circle(x + 1, y + 8, 3);
+        circle(x + 18, y + 8, 3);
+        arc(x + 10, y + 21, 10, 5, PI, TWO_PI);
+      }
+
+      pop();
+    }
+
+    draw() {
+      this.body.forEach((seg, idx) => {
+        const px = seg.x * CONFIG.size;
+        const py = seg.y * CONFIG.size;
+
+        if (idx === 0) {
+          this.drawHead(px, py);
+        } else {
+          fill(160, 210, 170);
+          noStroke();
+          rect(px, py, CONFIG.size - 1, CONFIG.size - 1, 2);
+        }
+      });
+    }
+  }
+
+  class Food {
+    constructor() {
+      this.x = 0;
+      this.y = 0;
+    }
+
+    spawn(snakeBody) {
+      const maxX = CONFIG.w / CONFIG.size;
+      const maxY = CONFIG.h / CONFIG.size;
+      this.x = floor(random(maxX));
+      this.y = floor(random(maxY));
+
+      for (let seg of snakeBody) {
+        if (seg.x === this.x && seg.y === this.y) {
+          this.spawn(snakeBody);
+          return;
+        }
+      }
+    }
+
+    draw() {
+      fill(255, 140, 70);
+      noStroke();
+      rect(this.x * CONFIG.size, this.y * CONFIG.size, CONFIG.size - 1, CONFIG.size - 1, 4);
+    }
+
+    isEaten(head) {
+      return head.x === this.x && head.y === this.y;
+    }
+  }
+
+  function setup() {
+    createCanvas(CONFIG.w, CONFIG.h);
+    resetGame();
+  }
+
+  function draw() {
+    background(CONFIG.bgColor);
+
+    // 标题：贪吃蛇
+    fill(100, 160, 110);
+    textSize(32);
+    textAlign(CENTER, TOP);
+    text("贪吃蛇", width / 2, 12);
+
+    if (gameOver) return;
+
+    const head = snake.getNewHead();
+    const eat = food.isEaten(head);
+    snake.move(eat);
+
+    if (eat) {
+      score += 10;
+      document.getElementById('score').innerText = score;
+      food.spawn(snake.body);
+      snake.emotion = "happy";
+
+      setTimeout(() => {
+        snake.emotion = "normal";
+      }, 300);
+    }
+
+    if (snake.hitWall() || snake.hitSelf()) {
+      gameOver = true;
+      snake.emotion = "sad";
+      alert(`游戏结束！得分：${score}，按空格重新开始`);
+    }
+
+    snake.draw();
+    food.draw();
+  }
+
+  function keyPressed() {
+    switch (keyCode) {
+      case UP_ARROW:
+        snake.setDirection(0, -1);
+        break;
+      case DOWN_ARROW:
+        snake.setDirection(0, 1);
+        break;
+      case LEFT_ARROW:
+        snake.setDirection(-1, 0);
+        break;
+      case RIGHT_ARROW:
+        snake.setDirection(1, 0);
+        break;
+    }
+
+    if (key === ' ') {
+      resetGame();
+    }
+  }
+
+  function resetGame() {
+    clearInterval(timer);
+    snake = new Snake();
+    food = new Food();
+    score = 0;
+    document.getElementById('score').innerText = score;
+    gameOver = false;
+
+    timer = setInterval(() => {
+      redraw();
+      noLoop();
+    }, CONFIG.speed);
+
+    loop();
+  }
+</script>
+</body>
+</html>
+关键改动：
+js
+// 蛇头放大到 30×30
+fill(255, 224, 196);
+rect(x - 5, y - 5, 30, 30, 6);
